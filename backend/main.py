@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from database import SessionLocal, TransactionRecord
+from backend.database import SessionLocal, TransactionRecord
 from datetime import datetime
 from pydantic import BaseModel, conlist
 import joblib
@@ -123,4 +123,7 @@ def get_model_metrics():
     if metrics:
         return metrics
     return {"message": "Metrics not available"}
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
 
