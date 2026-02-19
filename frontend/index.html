@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Fraud Intelligence Dashboard</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        body {
+            font-family: Arial;
+            background: #0f172a;
+            color: white;
+            text-align: center;
+            margin: 0;
+            padding: 20px;
+            transition: background 0.3s ease;
+        }
+
+        .card {
+            background: #1e293b;
+            padding: 20px;
+            margin: 15px;
+            border-radius: 10px;
+            display: inline-block;
+            width: 220px;
+        }
+
+        canvas {
+            height: 350px !important;
+        }
+
+        button {
+            padding: 10px 20px;
+            margin-top: 20px;
+            cursor: pointer;
+            background: #2563eb;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+
+        button:hover {
+            background: #1d4ed8;
+        }
+
+        #alertBox {
+            display: none;
+            background: #dc2626;
+            padding: 15px;
+            margin: 20px auto;
+            border-radius: 8px;
+            font-weight: bold;
+            width: 60%;
+        }
+    </style>
+</head>
+
+<body>
+
+<h1>Fraud Detection Intelligence Dashboard</h1>
+
+<div id="alertBox">
+    🚨 HIGH RISK FRAUD DETECTED 🚨
+</div>
+
+<h2>Active Model: <span id="activeModel">Loading...</span></h2>
+
+<h3>Fraud Probability Trend</h3>
+<div style="width: 80%; margin: 40px auto;">
+    <canvas id="fraudChart"></canvas>
+</div>
+
+<h3>Model Performance (ROC-AUC)</h3>
+<div style="width: 60%; margin: 40px auto;">
+    <canvas id="modelChart"></canvas>
+</div>
+
+<div class="card">
+    <h3>Total Transactions</h3>
+    <p id="total">0</p>
+</div>
+
+<div class="card">
+    <h3>High Risk</h3>
+    <p id="high">0</p>
+</div>
+
+<div class="card">
+    <h3>Medium Risk</h3>
+    <p id="medium">0</p>
+</div>
+
+<div class="card">
+    <h3>Low Risk</h3>
+    <p id="low">0</p>
+</div>
+
+<div class="card">
+    <h3>Average Fraud Probability</h3>
+    <p id="avg">0</p>
+</div>
+
+<br>
+<button onclick="loadData()">Refresh Data</button>
+
+<script>
+let fraudChart;
+let modelChart;
+
+async function loadData() {
+    try {
+        // Fetch analytics
+        const analyticsRes = await fetch("http://localhost:8000/analytics");
+        const analytics = await analyticsRes.json();
+
+        document.getElementById("total").innerText = analytics.total_transactions;
+        document.getElementById("high").innerText = analytics.high_risk;
+        document.getElementById("medium").innerText = analytics.medium_risk;
+        document.getElementById("low").innerText = analytics.low_risk;
+        document.getElementById("avg").innerText =
+            analytics.average_fraud_probability.toFixed(4);
+
+        const alertBox = document.getElementById("alertBox");
+
+        // Alert based on high risk count
+        if (analytics.high_risk > 0) {
+            alertBox.style.display = "block";
+            document.body.style.background = "#450a0a";
+        } else {
+            alertBox.style.display = "none";
+            document.body.style.background = "#0f172a";
+        }
+
+        // Fetch transactions
+        const transRes = await fetch("http://localhost:8000/transactions");
+        const transactions = await transRes.json();
+
+        const labels = transactions.map(t =>
+            new Date(t.timestamp).toLocaleTimeString()
+        );
+
+        const probabilities = transactions.map(t => t.fraud_probability);
+
+        if (fraudChart) fraudChart.destroy();
+
+        fraudChart = new Chart(
+            document.getElementById("fraudChart"),
+            {
+                type: "line",
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: "Fraud Probability",
+                        data: probabilities,
+                        borderColor: "red",
+                        pointBackgroundColor: probabilities.map(p =>
+                            p > 0.8 ? "#dc2626" : "red"
+                        ),
+                        pointRadius: probabilities.map(p =>
+                            p > 0.8 ? 6 : 3
+                        ),
+                        tension: 0.3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { min: 0, max: 1 }
+                    }
+                }
+            }
+        );
+
+        // Fetch metrics
+        const metricsRes = await fetch("http://localhost:8000/model-metrics");
+        const metrics = await metricsRes.json();
+
+        document.getElementById("activeModel").innerText = metrics.best_model;
+
+        if (modelChart) modelChart.destroy();
+
+        modelChart = new Chart(
+            document.getElementById("modelChart"),
+            {
+                type: "bar",
+                data: {
+                    labels: ["Logistic Regression", "Random Forest"],
+                    datasets: [{
+                        label: "ROC-AUC Score",
+                        data: [
+                            metrics.logistic_auc,
+                            metrics.random_forest_auc
+                        ],
+                        backgroundColor: ["#3b82f6", "#10b981"]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: { min: 0.9, max: 1 }
+                    }
+                }
+            }
+        );
+
+    } catch (error) {
+        console.error("Error:", error);
+    }
+}
+
+document.addEventListener("DOMContentLoaded", loadData);
+setInterval(loadData, 2000);
+</script>
+
+</body>
+</html>
+
